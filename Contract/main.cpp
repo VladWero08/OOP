@@ -32,6 +32,7 @@ public:
     float getValoare(){ return valoare; }
 
     // Setters
+    void setNrContract(int);
     void setAnul(int anul);
     void setBeneficiar(string beneficiar);
     void setFurnizor(string furnizor);
@@ -41,6 +42,9 @@ public:
     Contract &operator=(Contract contract);
     friend istream &operator>>(istream &in, Contract &contract);
     friend ostream &operator<<(ostream &out, Contract &contract);
+
+    // Valoare incasata
+    virtual double valoareIncasata();
 };
 
 int Contract::nrContractUnic = 0;
@@ -72,6 +76,10 @@ Contract::Contract(Contract &contract){
 };
 
 // Setters
+void Contract::setNrContract(int nrContract) {
+    this->nrContract = nrContract;
+}
+
 void Contract::setAnul(int anul) {
     if(!validAn(anul)){
         cout<<"Anul semnarii nu poate fi mai mare decat 2022"<<endl;
@@ -138,6 +146,8 @@ Contract &Contract::operator = (const Contract copie){
 }
 
 istream &operator >> (istream &in, Contract &c){
+    cout<<"Numarul contractului: ";
+    in>>c.nrContract;
     cout<<"Anul semnarii contractului: ";
     in>>c.anul;
     if(!c.validAn(c.anul)){
@@ -182,6 +192,11 @@ ostream &operator << (ostream &out, Contract &c){
     return out;
 }
 
+// Valoare incasata
+double Contract::valoareIncasata() {
+    return valoare;
+}
+
 class ContractInchiriere: public Contract{
     int perioada;
 
@@ -202,7 +217,7 @@ public:
     friend ostream &operator<<(ostream &out, ContractInchiriere &contract);
 
     // Calcul valoare incasasta
-    float valoareIncasata();
+    double valoareIncasata();
 };
 
 // Constructors
@@ -268,11 +283,12 @@ ostream &operator<<(ostream &out, ContractInchiriere &contract){
     out << dynamic_cast<Contract&>(contract);
     out << "Perioada: " << contract.perioada << endl;
     out << "Valoare incasata: " << contract.valoareIncasata() << endl;
+    cout << endl;
     return out;
 }
 
 // Calcul valoare incasata
-float ContractInchiriere ::valoareIncasata() {
+double ContractInchiriere ::valoareIncasata() {
     if(perioada < 12){
         return this->getValoare() * perioada;
     } else if ( perioada >=12 && perioada < 36){
@@ -288,7 +304,7 @@ class Dosar{
     static int idDosar;
     int nrTotalContracte;
     ContractInchiriere *contracte;
-    float valoareTotalIncasata;
+    double valoareTotalIncasata;
 
 public:
 
@@ -311,7 +327,7 @@ public:
     friend ostream &operator<<(ostream &out, Dosar &dosar);
 
     // Adaugare & stergere contract
-    void adaugaContract(ContractInchiriere);
+    void adaugaContract(Contract*);
     void stergeContract(int);
 };
 
@@ -396,7 +412,7 @@ Dosar &Dosar::operator=(Dosar dosar) {
 ostream &operator << (ostream &out, Dosar &dosar){
     if(dosar.nrTotalContracte != 0)
         Dosar::idDosar ++;
-    out << "Dosarul "<< dosar.getIDDosar() << ":" << endl;
+    out << endl;
     out << "Numarul total de contracte este de: ";
     out << dosar.nrTotalContracte << endl << endl;
     if(dosar.nrTotalContracte > 0){
@@ -427,22 +443,28 @@ istream &operator >> (istream &in, Dosar &dosar){
 
 // Stergese & adaugare
 
-void Dosar::adaugaContract(ContractInchiriere contractNou) {
-    this->nrTotalContracte += 1;
-    ContractInchiriere *contracteCopie = new ContractInchiriere [nrTotalContracte];
+void Dosar::adaugaContract(Contract *contractNou) {
+    ContractInchiriere *test = dynamic_cast<ContractInchiriere*>(contractNou);
+    if( test != NULL){
+        this->nrTotalContracte += 1;
+        ContractInchiriere *contracteCopie = new ContractInchiriere [nrTotalContracte];
 
-    for(int i=0;i<this->nrTotalContracte-1;i++){
-        contracteCopie[i] = this->contracte[i];
+        for(int i=0;i<this->nrTotalContracte-1;i++){
+            contracteCopie[i] = this->contracte[i];
+        }
+
+        contracteCopie[nrTotalContracte-1] = *test;
+        this->valoareTotalIncasata += contracteCopie[nrTotalContracte-1].valoareIncasata();
+        delete [] contracte;
+
+        this->contracte = new ContractInchiriere [nrTotalContracte];
+        for( int i=0;i<this->nrTotalContracte;i++){
+            contracte[i] = contracteCopie[i];
+        }
+        delete [] contracteCopie;
+    } else{
+        cout << "Contractul trebuie sa fie de tip inchiriere pentru a fi adaugat!" << endl;
     }
-
-    contracteCopie[nrTotalContracte-1] = contractNou;
-    delete [] contracte;
-
-    this->contracte = new ContractInchiriere [nrTotalContracte];
-    for( int i=0;i<this->nrTotalContracte;i++){
-        contracte[i] = contracteCopie[i];
-    }
-    delete [] contracteCopie;
 }
 
 void Dosar::stergeContract(int id) {
@@ -452,7 +474,7 @@ void Dosar::stergeContract(int id) {
             aux = i;
     }
 
-    if(aux != -1){
+    if(aux == -1){
         cout << "Contractul nu poate fi sters deoarece nu exista in dosar." << endl;
     } else{
         ContractInchiriere *copie = new ContractInchiriere [this->nrTotalContracte-1];
@@ -474,10 +496,19 @@ void Dosar::stergeContract(int id) {
 
 }
 
+void testare(){
+    ContractInchiriere contract_inchiriere_test(2002,20,"Villy","Wero",300,12);
+    cout << contract_inchiriere_test;
+
+    Contract contract_test(2002,21,"Vlad","Mihai",300);
+    cout << contract_test;
+}
+
 int main(){
     int comanda, id_stergere;
     Dosar utilizator;
-    ContractInchiriere contract_nou;
+    ContractInchiriere contract_inchiriere_nou;
+    Contract *contract_nou = &contract_inchiriere_nou;
 
     cout << "Doriti sa aveti o agenda a contractelor dumneavoastra imobiliara?";
     cout << "Platforma aceasta face exact acest lucru automat pentru dumneavoastra.";
@@ -487,8 +518,8 @@ int main(){
     cout << "Comenzile pe care le aveti la dispozitie:" <<endl;
     cout << "1 - Creati un dosar" << endl;
     cout << "2 - Afisati dosarul( daca acesta este creat)" << endl;
-    cout << "3 - Adaugati un nou contract la dosarul creat" << endl;
-    cout << "4 - Stergeti un contract din dosarul creat" << endl;
+    cout << "3 - Stergeti un contract din dosarul creat" << endl;
+    cout << "4 - Adaugati un nou contract la dosarul creat" << endl;
     cout << "0 - Parisiti & salvati datele introduse" << endl;
 
     cout << "Comanda: ";
@@ -555,7 +586,7 @@ int main(){
                     cout << "Inca nu ati creat un dosar. Va rugam creati un dosar pentru a putea sterge un contract." << endl;
                 } else{
                     cout << "Ati ales sa stergeti un contract." << endl;
-                    cout << "Introduceti id-ul unic al contractului pe care doriti sa il stergeti:" << endl;
+                    cout << "Introduceti id-ul contractului pe care doriti sa il stergeti:" << endl;
                     cin >> id_stergere;
                     utilizator.stergeContract(id_stergere);
                 }
@@ -567,7 +598,7 @@ int main(){
                 } else{
                     cout << "Ati ales sa introduceti un nou contract in dosarul dvs." << endl;
                     cout << "Va rugam sa introduceti contractul." << endl;
-                    cin >> contract_nou;
+                    cin >> *dynamic_cast<ContractInchiriere *>(contract_nou);
                     utilizator.adaugaContract(contract_nou);
                 }
                 break;
@@ -582,7 +613,7 @@ int main(){
 
     if(utilizator.getNrContracte() != 0){
         string outputFile = "Dosarul" + to_string(utilizator.getIDDosar());
-        ofstream output(outputFile .c_str());
+        ofstream output(outputFile.c_str());
         output<<utilizator;
     }
 
